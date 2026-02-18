@@ -97,6 +97,7 @@
 <script>
 const $ = (id)=>document.getElementById(id);
 const WORKER_API_BASE = 'https://weather-outfit-api.awwzooofficial.workers.dev';
+const IMAGE_MODEL = 'qwen/qwen-image';
 function fmtDate(d){ return d.toISOString().slice(0,10); }
 function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function dateRange(start,end){
@@ -201,7 +202,7 @@ async function generateOutfitImage(prompt, meta){
     const r = await fetch(`${WORKER_API_BASE}/api/generate-outfit-image`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, model: IMAGE_MODEL })
     });
     const j = await r.json();
     const b64 = j?.data?.[0]?.b64_json;
