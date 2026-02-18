@@ -5,31 +5,73 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trip Fit Weather</title>
   <style>
-    :root{--bg:#0b1020;--card:#151d36;--line:#2a365f;--txt:#f5f7ff;--muted:#9fb0df;--pri:#4f7cff;}
+    :root{
+      --bg:#070b16;--bg2:#0b1228;--card:#101a38cc;--line:#2f3f72;--txt:#f5f7ff;--muted:#a8b8e7;
+      --pri:#6e8dff;--pri2:#59d0ff;--ok:#78ffbe;--danger:#ffb7b7;
+    }
     *{box-sizing:border-box}
-    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; margin: 0; background:var(--bg); color:var(--txt); }
-    .wrap { max-width: 1000px; margin: 0 auto; padding: 20px; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px; }
-    input, select, button { padding:10px 12px; border-radius:10px; border:1px solid #334; background:#0f1730; color:#fff; }
-    button { background:var(--pri); border:none; cursor:pointer; font-weight:700; }
+    body {
+      font-family: Inter, -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      margin:0;color:var(--txt);
+      background:
+        radial-gradient(1200px 500px at -10% -20%, #213f8c44 0%, transparent 55%),
+        radial-gradient(1000px 500px at 110% -10%, #2783a944 0%, transparent 50%),
+        linear-gradient(180deg,var(--bg),var(--bg2));
+      min-height:100vh;
+    }
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 24px; }
+    .hero{padding:20px 20px 8px 20px}
+    .hero h1{margin:0;font-size:34px;letter-spacing:.2px}
+    .hero p{margin:8px 0 0 0;color:var(--muted)}
+    .card {
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      margin-bottom:14px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 10px 30px #0000002a;
+    }
+    .titleRow{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .title{font-weight:700;font-size:15px;color:#d8e2ff}
+    input, select, button {
+      padding:11px 12px; border-radius:12px;
+      border:1px solid #405086; background:#0b1430; color:#fff;
+      transition:.2s ease;
+    }
+    input:focus,select:focus{outline:none;border-color:#7191ff;box-shadow:0 0 0 3px #5e80ff33}
+    button {
+      background:linear-gradient(135deg,var(--pri),var(--pri2));
+      border:none; cursor:pointer; font-weight:800; color:#0a1330;
+      box-shadow: 0 8px 18px #4a74ff55;
+    }
+    button:hover{transform:translateY(-1px)}
     .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
     .muted { color:var(--muted); font-size:13px; }
     .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:#c8d5ff}
-    .day{padding:10px 0;border-bottom:1px solid var(--line)}
+    .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:#d4deff;background:#111a37}
+    .day{padding:12px 0;border-bottom:1px dashed #3a4d86}
     .day:last-child{border-bottom:none}
-    .danger{color:#ffb3b3}
-    .ok{color:#b8ffd0}
-    @media (max-width: 860px){ .grid{grid-template-columns:1fr 1fr} }
-    @media (max-width: 560px){ .grid{grid-template-columns:1fr} }
+    .danger{color:var(--danger)}
+    .ok{color:var(--ok)}
+    .kpi{display:flex;gap:8px;flex-wrap:wrap}
+    .kpi .badge{background:#0f1b3b}
+    @media (max-width: 860px){ .grid{grid-template-columns:1fr 1fr} .hero h1{font-size:28px} }
+    @media (max-width: 560px){ .grid{grid-template-columns:1fr} .wrap{padding:14px} }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Trip Fit Weather</h1>
-    <p class="muted">도시/기간/성별/연령대 기반 날씨 + 코디 추천</p>
+    <div class="hero card">
+      <div class="titleRow">
+        <h1>Trip Fit Weather</h1>
+        <span class="badge">Beta</span>
+      </div>
+      <p class="muted">도시/기간/성별/연령대 기반 날씨 + 코디 추천 · 여행 패킹리스트 자동 생성</p>
+    </div>
 
     <div class="card">
+      <div class="title" style="margin-bottom:10px">여행 조건 입력</div>
       <div class="grid">
         <input id="city" placeholder="도시 (예: Bangkok, New York, Seoul)" value="Bangkok" />
         <input id="country" placeholder="국가코드 (예: TH, US, KR)" value="TH" />
@@ -48,8 +90,8 @@
     </div>
 
     <div id="summary" class="card muted">결과가 여기에 표시됩니다.</div>
-    <div id="days" class="card"></div>
-    <div id="packing" class="card"></div>
+    <div id="days" class="card"><div class="title" style="margin-bottom:8px">날짜별 코디</div></div>
+    <div id="packing" class="card"><div class="title" style="margin-bottom:8px">패킹리스트</div></div>
   </div>
 
 <script>
@@ -199,7 +241,7 @@ async function run(){
     const summaryHtml = `
       <div><b>${loc.name}</b>, ${loc.country} <span class="muted">(${loc.latitude.toFixed(2)}, ${loc.longitude.toFixed(2)})</span></div>
       <div style="margin-top:6px" class="muted">${start} ~ ${end} · ${gender} / ${age}</div>
-      <div style="margin-top:8px">
+      <div style="margin-top:8px" class="kpi">
         <span class="badge">예보 기반: ${rows.filter(r=>r.source==='forecast').length}일</span>
         <span class="badge">기후 fallback: ${rows.filter(r=>r.source==='climate').length}일</span>
       </div>`;
