@@ -5,71 +5,227 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trip Fit Weather</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin: 0; background:#0b1020; color:#f5f7ff; }
-    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-    .card { background:#151d36; border:1px solid #2a365f; border-radius:16px; padding:16px; margin-bottom:16px; }
+    :root{--bg:#0b1020;--card:#151d36;--line:#2a365f;--txt:#f5f7ff;--muted:#9fb0df;--pri:#4f7cff;}
+    *{box-sizing:border-box}
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; margin: 0; background:var(--bg); color:var(--txt); }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 20px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px; }
     input, select, button { padding:10px 12px; border-radius:10px; border:1px solid #334; background:#0f1730; color:#fff; }
-    button { background:#4f7cff; border:none; cursor:pointer; font-weight:600; }
-    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-    .muted { color:#9fb0df; font-size:13px; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    button { background:var(--pri); border:none; cursor:pointer; font-weight:700; }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .muted { color:var(--muted); font-size:13px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:#c8d5ff}
+    .day{padding:10px 0;border-bottom:1px solid var(--line)}
+    .day:last-child{border-bottom:none}
+    .danger{color:#ffb3b3}
+    .ok{color:#b8ffd0}
+    @media (max-width: 860px){ .grid{grid-template-columns:1fr 1fr} }
+    @media (max-width: 560px){ .grid{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Trip Fit Weather</h1>
-    <p class="muted">도시/기간/성별/연령대 기반 날씨+코디 추천 MVP</p>
+    <p class="muted">도시/기간/성별/연령대 기반 날씨 + 코디 추천</p>
 
     <div class="card">
       <div class="grid">
         <input id="city" placeholder="도시 (예: Bangkok, New York, Seoul)" value="Bangkok" />
         <input id="country" placeholder="국가코드 (예: TH, US, KR)" value="TH" />
-        <input id="start" type="date" />
-        <input id="end" type="date" />
         <select id="gender"><option>남성</option><option>여성</option><option>중립</option></select>
         <select id="age">
           <option>10대</option><option selected>20대</option><option>30대</option><option>40대</option><option>50대</option><option>60대</option><option>70대</option>
         </select>
+        <input id="start" type="date" />
+        <input id="end" type="date" />
       </div>
       <div style="margin-top:12px" class="row">
         <button id="runBtn">추천 받기</button>
-        <span class="muted">* 현재 데모: 룰 기반 코디 + 예보 API 자리</span>
+        <span id="status" class="muted">대기중</span>
       </div>
+      <div class="muted" style="margin-top:8px">예보 범위를 넘는 미래 날짜는 과거 5년 동일 월일 평균(기후 fallback)으로 추천합니다.</div>
     </div>
 
-    <div id="result" class="card">결과가 여기에 표시됩니다.</div>
+    <div id="summary" class="card muted">결과가 여기에 표시됩니다.</div>
+    <div id="days" class="card"></div>
+    <div id="packing" class="card"></div>
   </div>
 
 <script>
-function outfitRule(tempMax, rainProb){
-  let top = tempMax >= 28 ? '반팔' : tempMax >= 20 ? '긴팔/얇은 셔츠' : '니트/맨투맨';
-  let outer = tempMax < 18 ? '가벼운 자켓' : '불필요/얇은 가디건';
-  let items = [];
-  if (rainProb >= 50) items.push('우산');
-  if (tempMax >= 30) items.push('모자');
-  items.push('편한 운동화');
-  return {top, outer, items};
+const $ = (id)=>document.getElementById(id);
+function fmtDate(d){ return d.toISOString().slice(0,10); }
+function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
+function dateRange(start,end){
+  const out=[]; let d=new Date(start);
+  while(d<=end){ out.push(new Date(d)); d=addDays(d,1); }
+  return out;
+}
+function monthDay(s){ return s.slice(5,10); }
+
+function outfitRule(tMax,tMin,rainProb,gender,age){
+  const avg=(tMax+tMin)/2;
+  let top='긴팔'; let bottom='긴바지'; let outer='가벼운 아우터';
+  if(avg>=30){ top='통풍 반팔'; bottom='반바지/얇은 바지'; outer='없음'; }
+  else if(avg>=25){ top='반팔'; bottom='얇은 긴바지'; outer='얇은 가디건(실내용)'; }
+  else if(avg>=20){ top='긴팔/셔츠'; bottom='긴바지'; outer='얇은 자켓'; }
+  else if(avg>=14){ top='긴팔+이너'; bottom='긴바지'; outer='자켓'; }
+  else { top='니트/후디'; bottom='두께감 바지'; outer='코트/패딩'; }
+
+  const acc=[];
+  if(rainProb>=50) acc.push('우산');
+  if(tMax>=30) acc.push('모자/선글라스');
+  if(tMin<=10) acc.push('보온 머플러');
+  acc.push('편한 운동화');
+
+  // subtle age/gender style note
+  let fit='활동성 우선';
+  if(['10대','20대'].includes(age)) fit='활동성 + 트렌디';
+  else if(['50대','60대','70대'].includes(age)) fit='편안함 + 체온유지';
+
+  let g='';
+  if(gender==='남성') g='(남성 실루엣 기준)';
+  else if(gender==='여성') g='(여성 실루엣 기준)';
+  else g='(중립 스타일 기준)';
+
+  return {top,bottom,outer,acc,fit,g};
 }
 
-document.getElementById('runBtn').onclick = () => {
-  const city = document.getElementById('city').value;
-  const country = document.getElementById('country').value;
-  const gender = document.getElementById('gender').value;
-  const age = document.getElementById('age').value;
-  const demo = [
-    {date:'D1', tempMax:31, tempMin:26, rainProb:60},
-    {date:'D2', tempMax:33, tempMin:27, rainProb:30},
-    {date:'D3', tempMax:30, tempMin:25, rainProb:70}
-  ];
-  const html = demo.map(d=>{
-    const r = outfitRule(d.tempMax, d.rainProb);
-    return `<div style="padding:10px;border-bottom:1px solid #2a365f">
-      <b>${d.date}</b> · ${d.tempMin}~${d.tempMax}°C · 강수확률 ${d.rainProb}%<br>
-      코디(${gender}/${age}): ${r.top} + ${outer=r.outer} / 준비물: ${r.items.join(', ')}
-    </div>`;
-  }).join('');
-  document.getElementById('result').innerHTML = `<h3>${city}, ${country} 추천</h3>${html}`;
+async function geocode(city,country){
+  const q = encodeURIComponent(city + (country?','+country:''));
+  const url=`https://geocoding-api.open-meteo.com/v1/search?name=${q}&count=5&language=ko&format=json`;
+  const r=await fetch(url); if(!r.ok) throw new Error('도시 검색 실패');
+  const j=await r.json();
+  if(!j.results || !j.results.length) throw new Error('도시를 찾지 못했습니다');
+  return j.results[0];
 }
+
+async function forecast(lat,lon,start,end){
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`+
+    `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum`+
+    `&timezone=auto&start_date=${start}&end_date=${end}`;
+  const r=await fetch(url); if(!r.ok) throw new Error('예보 조회 실패');
+  return r.json();
+}
+
+async function historicalFallback(lat,lon,start,end){
+  const s=new Date(start), e=new Date(end);
+  const ys=s.getFullYear()-5, ye=e.getFullYear()-1;
+  const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}`+
+    `&start_date=${ys}-01-01&end_date=${ye}-12-31`+
+    `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
+  const r=await fetch(url); if(!r.ok) throw new Error('기후 fallback 조회 실패');
+  const j=await r.json();
+  const map={};
+  const t=j.daily.time||[];
+  for(let i=0;i<t.length;i++){
+    const md=monthDay(t[i]);
+    if(!map[md]) map[md]={n:0,max:0,min:0,pr:0};
+    map[md].n++;
+    map[md].max += (j.daily.temperature_2m_max?.[i] ?? 0);
+    map[md].min += (j.daily.temperature_2m_min?.[i] ?? 0);
+    map[md].pr  += (j.daily.precipitation_sum?.[i] ?? 0);
+  }
+  return map;
+}
+
+function render(summary,days,packing){
+  $('summary').innerHTML = summary;
+  $('days').innerHTML = days;
+  $('packing').innerHTML = packing;
+}
+
+async function run(){
+  try{
+    $('status').textContent='조회중...';
+    const city=$('city').value.trim();
+    const country=$('country').value.trim();
+    const gender=$('gender').value;
+    const age=$('age').value;
+    const start=$('start').value; const end=$('end').value;
+    if(!city||!start||!end) throw new Error('도시/기간을 입력하세요');
+    if(start>end) throw new Error('종료일이 시작일보다 빠릅니다');
+
+    const loc=await geocode(city,country);
+    const today=fmtDate(new Date());
+    const maxForecastDate=fmtDate(addDays(new Date(),15));
+    const tripDates=dateRange(new Date(start),new Date(end)).map(fmtDate);
+
+    const needFallback = tripDates.some(d=>d>maxForecastDate);
+    const forecastEnd = tripDates.filter(d=>d<=maxForecastDate).slice(-1)[0] || today;
+
+    let fData={daily:{time:[],temperature_2m_max:[],temperature_2m_min:[],precipitation_probability_max:[],precipitation_sum:[]}};
+    if(start<=forecastEnd){ fData=await forecast(loc.latitude,loc.longitude,start,forecastEnd); }
+    const fMap={};
+    (fData.daily.time||[]).forEach((d,i)=>{
+      fMap[d]={
+        source:'forecast',
+        tmax:fData.daily.temperature_2m_max?.[i],
+        tmin:fData.daily.temperature_2m_min?.[i],
+        rainProb:fData.daily.precipitation_probability_max?.[i] ?? 0,
+        rainMm:fData.daily.precipitation_sum?.[i] ?? 0,
+      };
+    });
+
+    let climate=null;
+    if(needFallback){ climate=await historicalFallback(loc.latitude,loc.longitude,start,end); }
+
+    const rows=[];
+    const pack=new Set();
+    for(const d of tripDates){
+      let it=fMap[d];
+      if(!it){
+        const md=monthDay(d);
+        const c=climate?.[md];
+        if(c && c.n>0){
+          it={
+            source:'climate',
+            tmax:c.max/c.n,
+            tmin:c.min/c.n,
+            rainProb: Math.min(100, Math.round((c.pr/c.n)*20)),
+            rainMm: c.pr/c.n
+          };
+        }else{
+          it={source:'climate',tmax:24,tmin:18,rainProb:30,rainMm:1};
+        }
+      }
+      const rec=outfitRule(it.tmax,it.tmin,it.rainProb,gender,age);
+      rec.acc.forEach(x=>pack.add(x));
+      rows.push({date:d,...it,rec});
+    }
+
+    const summaryHtml = `
+      <div><b>${loc.name}</b>, ${loc.country} <span class="muted">(${loc.latitude.toFixed(2)}, ${loc.longitude.toFixed(2)})</span></div>
+      <div style="margin-top:6px" class="muted">${start} ~ ${end} · ${gender} / ${age}</div>
+      <div style="margin-top:8px">
+        <span class="badge">예보 기반: ${rows.filter(r=>r.source==='forecast').length}일</span>
+        <span class="badge">기후 fallback: ${rows.filter(r=>r.source==='climate').length}일</span>
+      </div>`;
+
+    const daysHtml = rows.map(r=>`
+      <div class="day">
+        <div><b>${r.date}</b> <span class="badge">${r.source==='forecast'?'실시간 예보':'기후 평균'}</span></div>
+        <div class="muted">최저/최고 ${r.tmin.toFixed(1)}°C / ${r.tmax.toFixed(1)}°C · 강수확률 ${Math.round(r.rainProb)}% · 강수량 ${r.rainMm.toFixed(1)}mm</div>
+        <div style="margin-top:6px">코디 ${r.rec.g}: <b>${r.rec.top}</b> + <b>${r.rec.bottom}</b> + <b>${r.rec.outer}</b></div>
+        <div class="muted">스타일 가중치: ${r.rec.fit}</div>
+        <div>준비물: ${r.rec.acc.join(', ')}</div>
+      </div>
+    `).join('');
+
+    const packingHtml = `<h3 style="margin-top:0">여행 패킹리스트</h3><div>${Array.from(pack).join(', ')}</div>`;
+    render(summaryHtml,daysHtml,packingHtml);
+    $('status').textContent='완료';
+  }catch(e){
+    $('status').textContent='실패';
+    render(`<span class="danger">오류: ${e.message}</span>`,'','');
+  }
+}
+
+(function initDates(){
+  const s=addDays(new Date(),7), e=addDays(new Date(),11);
+  $('start').value=fmtDate(s); $('end').value=fmtDate(e);
+})();
+$('runBtn').addEventListener('click',run);
 </script>
 </body>
 </html>
