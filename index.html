@@ -181,17 +181,22 @@ function render(summary,days,packing){
 }
 
 async function generateOutfitImage(prompt){
-  const r = await fetch(`${WORKER_API_BASE}/api/generate-outfit-image`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ prompt })
-  });
-  const j = await r.json();
-  const b64 = j?.data?.[0]?.b64_json;
-  const url = j?.data?.[0]?.url;
-  if (b64) return `data:image/png;base64,${b64}`;
-  if (url) return url;
-  throw new Error(j?.error?.message || j?.error || 'image generation failed');
+  try{
+    const r = await fetch(`${WORKER_API_BASE}/api/generate-outfit-image`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ prompt })
+    });
+    const j = await r.json();
+    const b64 = j?.data?.[0]?.b64_json;
+    const url = j?.data?.[0]?.url;
+    if (b64) return `data:image/png;base64,${b64}`;
+    if (url) return url;
+    throw new Error(j?.error?.message || j?.error || 'image generation failed');
+  }catch(e){
+    // Fallback image generator (no-key) to avoid blank UX
+    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=1024&nologo=true&seed=${Date.now()%100000}`;
+  }
 }
 
 async function renderOutfitImages(rows, city, country, gender, age){
@@ -203,7 +208,7 @@ async function renderOutfitImages(rows, city, country, gender, age){
       const r = rows[i];
       const prompt = `${city}, ${country} 여행 코디 사진. ${gender} ${age}. 날씨: 최저 ${r.tmin.toFixed(1)}도, 최고 ${r.tmax.toFixed(1)}도, 강수확률 ${Math.round(r.rainProb)}%. 착장: ${r.rec.top}, ${r.rec.bottom}, ${r.rec.outer}. realistic full-body street fashion photo, clean background, no text, no logo.`;
       const src = await generateOutfitImage(prompt);
-      box.innerHTML = `<img src="${src}" alt="${r.date} 코디" style="width:100%;max-width:260px;border-radius:12px;border:1px solid #3a4d86;display:block;margin-top:8px"/>`;
+      box.innerHTML = `<img src="${src}" alt="${r.date} 코디" style="width:100%;max-width:260px;border-radius:12px;border:1px solid #3a4d86;display:block;margin-top:8px" onerror="this.onerror=null;this.src='https://picsum.photos/seed/${encodeURIComponent(r.date+city)}/320/420';"/>`;
     }catch(e){
       box.innerHTML = `<span class="muted">이미지 생성 실패</span>`;
     }
