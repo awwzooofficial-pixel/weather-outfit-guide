@@ -96,6 +96,7 @@
 
 <script>
 const $ = (id)=>document.getElementById(id);
+const WORKER_API_BASE = 'https://weather-outfit-api.awwzooofficial.workers.dev';
 function fmtDate(d){ return d.toISOString().slice(0,10); }
 function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function dateRange(start,end){
@@ -175,8 +176,38 @@ async function historicalFallback(lat,lon,start,end){
 
 function render(summary,days,packing){
   $('summary').innerHTML = summary;
-  $('days').innerHTML = days;
-  $('packing').innerHTML = packing;
+  $('days').innerHTML = `<div class="title" style="margin-bottom:8px">날짜별 코디</div>${days}`;
+  $('packing').innerHTML = `<div class="title" style="margin-bottom:8px">패킹리스트</div>${packing}`;
+}
+
+async function generateOutfitImage(prompt){
+  const r = await fetch(`${WORKER_API_BASE}/api/generate-outfit-image`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ prompt })
+  });
+  const j = await r.json();
+  const b64 = j?.data?.[0]?.b64_json;
+  const url = j?.data?.[0]?.url;
+  if (b64) return `data:image/png;base64,${b64}`;
+  if (url) return url;
+  throw new Error(j?.error?.message || j?.error || 'image generation failed');
+}
+
+async function renderOutfitImages(rows, city, country, gender, age){
+  for (let i=0; i<rows.length; i++){
+    const box = document.getElementById(`look-${i}`);
+    if (!box) continue;
+    box.innerHTML = `<span class="muted">이미지 생성중...</span>`;
+    try{
+      const r = rows[i];
+      const prompt = `${city}, ${country} 여행 코디 사진. ${gender} ${age}. 날씨: 최저 ${r.tmin.toFixed(1)}도, 최고 ${r.tmax.toFixed(1)}도, 강수확률 ${Math.round(r.rainProb)}%. 착장: ${r.rec.top}, ${r.rec.bottom}, ${r.rec.outer}. realistic full-body street fashion photo, clean background, no text, no logo.`;
+      const src = await generateOutfitImage(prompt);
+      box.innerHTML = `<img src="${src}" alt="${r.date} 코디" style="width:100%;max-width:260px;border-radius:12px;border:1px solid #3a4d86;display:block;margin-top:8px"/>`;
+    }catch(e){
+      box.innerHTML = `<span class="muted">이미지 생성 실패</span>`;
+    }
+  }
 }
 
 async function run(){
@@ -246,18 +277,21 @@ async function run(){
         <span class="badge">기후 fallback: ${rows.filter(r=>r.source==='climate').length}일</span>
       </div>`;
 
-    const daysHtml = rows.map(r=>`
+    const daysHtml = rows.map((r,idx)=>`
       <div class="day">
         <div><b>${r.date}</b> <span class="badge">${r.source==='forecast'?'실시간 예보':'기후 평균'}</span></div>
         <div class="muted">최저/최고 ${r.tmin.toFixed(1)}°C / ${r.tmax.toFixed(1)}°C · 강수확률 ${Math.round(r.rainProb)}% · 강수량 ${r.rainMm.toFixed(1)}mm</div>
         <div style="margin-top:6px">코디 ${r.rec.g}: <b>${r.rec.top}</b> + <b>${r.rec.bottom}</b> + <b>${r.rec.outer}</b></div>
         <div class="muted">스타일 가중치: ${r.rec.fit}</div>
         <div>준비물: ${r.rec.acc.join(', ')}</div>
+        <div id="look-${idx}"></div>
       </div>
     `).join('');
 
-    const packingHtml = `<h3 style="margin-top:0">여행 패킹리스트</h3><div>${Array.from(pack).join(', ')}</div>`;
+    const packingHtml = `<div>${Array.from(pack).join(', ')}</div>`;
     render(summaryHtml,daysHtml,packingHtml);
+    $('status').textContent='완료 (이미지 생성중)';
+    await renderOutfitImages(rows, loc.name, loc.country, gender, age);
     $('status').textContent='완료';
   }catch(e){
     $('status').textContent='실패';
