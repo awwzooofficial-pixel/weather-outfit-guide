@@ -146,6 +146,22 @@ const $ = (id)=>document.getElementById(id);
 const WORKER_API_BASE = 'https://weather-outfit-api.awwzooofficial.workers.dev';
 const IMAGE_MODEL = 'qwen/qwen-image';
 
+function stockOutfitImage(meta){
+  const hot = meta.tmax >= 28;
+  const warm = meta.tmax >= 20 && meta.tmax < 28;
+  const rainy = meta.rainProb >= 50;
+  const female = meta.gender === '여성';
+
+  if (rainy && female) return 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80';
+  if (rainy && !female) return 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80';
+  if (hot && female) return 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80';
+  if (hot && !female) return 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80';
+  if (warm && female) return 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80';
+  if (warm && !female) return 'https://images.unsplash.com/photo-1490578474895-699cd4e2cf59?auto=format&fit=crop&w=900&q=80';
+  if (female) return 'https://images.unsplash.com/photo-1541101767792-f9b2b1c4f127?auto=format&fit=crop&w=900&q=80';
+  return 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80';
+}
+
 function fmtDate(d){ return d.toISOString().slice(0,10); }
 function addDays(date,n){ const d=new Date(date); d.setDate(d.getDate()+n); return d; }
 function dateRange(start,end){ const out=[]; let d=new Date(start); while(d<=end){ out.push(new Date(d)); d=addDays(d,1);} return out; }
@@ -219,18 +235,28 @@ async function historicalFallback(lat,lon,start,end){
   return map;
 }
 
-async function generateOutfitImage(prompt){
-  const r = await fetch(`${WORKER_API_BASE}/api/generate-outfit-image`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ prompt, model: IMAGE_MODEL })
-  });
-  const j = await r.json();
-  const b64 = j?.data?.[0]?.b64_json;
-  const url = j?.data?.[0]?.url;
-  if (b64) return `data:image/png;base64,${b64}`;
-  if (url) return url;
-  throw new Error(j?.error?.message || j?.error || 'image generation failed');
+async function generateOutfitImage(prompt, meta){
+  // 1) Try worker image generation (best case)
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch(`${WORKER_API_BASE}/api/generate-outfit-image`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ prompt, model: IMAGE_MODEL }),
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+
+    const j = await r.json();
+    const b64 = j?.data?.[0]?.b64_json;
+    const url = j?.data?.[0]?.url;
+    if (b64) return `data:image/png;base64,${b64}`;
+    if (url) return url;
+  } catch (_) {}
+
+  // 2) Stable fallback (always show useful outfit image)
+  return stockOutfitImage(meta);
 }
 
 function render(summaryHtml, daysHtml, packingHtml){
@@ -247,10 +273,11 @@ async function renderOutfitImages(rows, city, country, gender, age){
     try{
       const r = rows[i];
       const prompt = `K-fashion travel outfit photo, exactly one person, ${gender}, ${age}, full body from head to shoes, standing pose, realistic photography, clean background. Weather context: city=${city}, country=${country}, low=${r.tmin.toFixed(1)}C, high=${r.tmax.toFixed(1)}C, rain=${Math.round(r.rainProb)}%. Required clothes: ${r.rec.top}, ${r.rec.bottom}, ${r.rec.outer}. Avoid: text, logo, watermark, extra people, extra limbs, blur, cartoon.`;
-      const src = await generateOutfitImage(prompt);
-      box.innerHTML = `<div class="look"><img src="${src}" alt="${r.date} 코디"/></div>`;
+      const src = await generateOutfitImage(prompt, { tmax: r.tmax, rainProb: r.rainProb, gender });
+      box.innerHTML = `<div class="look"><img src="${src}" alt="${r.date} 코디" loading="lazy"/></div>`;
     }catch(e){
-      box.innerHTML = `<span class="err">이미지 생성 실패 (모델/키 설정 확인 필요)</span>`;
+      const fb = stockOutfitImage({ tmax: r.tmax, rainProb: r.rainProb, gender });
+      box.innerHTML = `<div class="look"><img src="${fb}" alt="${r.date} 코디" loading="lazy"/></div>`;
     }
   }
 }
