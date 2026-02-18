@@ -180,7 +180,23 @@ function render(summary,days,packing){
   $('packing').innerHTML = `<div class="title" style="margin-bottom:8px">패킹리스트</div>${packing}`;
 }
 
-async function generateOutfitImage(prompt){
+function stockOutfitImage(meta){
+  const hot = meta.tmax >= 28;
+  const cold = meta.tmax < 16;
+  const rainy = meta.rainProb >= 50;
+  const female = meta.gender === '여성';
+  // royalty-free stock URLs (stable fallback, less weird than generated failures)
+  if (cold && female) return 'https://images.unsplash.com/photo-1541101767792-f9b2b1c4f127?auto=format&fit=crop&w=700&q=80';
+  if (cold && !female) return 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=700&q=80';
+  if (rainy && female) return 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=700&q=80';
+  if (rainy && !female) return 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=700&q=80';
+  if (hot && female) return 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=700&q=80';
+  if (hot && !female) return 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=700&q=80';
+  if (female) return 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=700&q=80';
+  return 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=700&q=80';
+}
+
+async function generateOutfitImage(prompt, meta){
   try{
     const r = await fetch(`${WORKER_API_BASE}/api/generate-outfit-image`, {
       method:'POST',
@@ -194,8 +210,7 @@ async function generateOutfitImage(prompt){
     if (url) return url;
     throw new Error(j?.error?.message || j?.error || 'image generation failed');
   }catch(e){
-    // Fallback image generator (no-key) to avoid blank UX
-    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=1024&nologo=true&seed=${Date.now()%100000}`;
+    return stockOutfitImage(meta);
   }
 }
 
@@ -206,8 +221,8 @@ async function renderOutfitImages(rows, city, country, gender, age){
     box.innerHTML = `<span class="muted">이미지 생성중...</span>`;
     try{
       const r = rows[i];
-      const prompt = `${city}, ${country} 여행 코디 사진. ${gender} ${age}. 날씨: 최저 ${r.tmin.toFixed(1)}도, 최고 ${r.tmax.toFixed(1)}도, 강수확률 ${Math.round(r.rainProb)}%. 착장: ${r.rec.top}, ${r.rec.bottom}, ${r.rec.outer}. realistic full-body street fashion photo, clean background, no text, no logo.`;
-      const src = await generateOutfitImage(prompt);
+      const prompt = `${city}, ${country} travel outfit editorial photo. one ${gender} person in ${age}, natural body proportion, full body, realistic fashion photography, weather-aware styling. weather: low ${r.tmin.toFixed(1)}C high ${r.tmax.toFixed(1)}C rain ${Math.round(r.rainProb)}%. outfit: ${r.rec.top}, ${r.rec.bottom}, ${r.rec.outer}. no logo, no text, no extra limbs, no distortion.`;
+      const src = await generateOutfitImage(prompt, { tmax: r.tmax, rainProb: r.rainProb, gender });
       box.innerHTML = `<img src="${src}" alt="${r.date} 코디" style="width:100%;max-width:260px;border-radius:12px;border:1px solid #3a4d86;display:block;margin-top:8px" onerror="this.onerror=null;this.src='https://picsum.photos/seed/${encodeURIComponent(r.date+city)}/320/420';"/>`;
     }catch(e){
       box.innerHTML = `<span class="muted">이미지 생성 실패</span>`;
