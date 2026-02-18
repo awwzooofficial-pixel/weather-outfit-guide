@@ -92,8 +92,10 @@ function outfitRule(tMax,tMin,rainProb,gender,age){
 }
 
 async function geocode(city,country){
-  const q = encodeURIComponent(city + (country?','+country:''));
-  const url=`https://geocoding-api.open-meteo.com/v1/search?name=${q}&count=5&language=ko&format=json`;
+  const q = encodeURIComponent(city);
+  const c = (country||'').trim().toUpperCase();
+  const cc = c ? `&countryCode=${encodeURIComponent(c)}` : '';
+  const url=`https://geocoding-api.open-meteo.com/v1/search?name=${q}${cc}&count=10&language=ko&format=json`;
   const r=await fetch(url); if(!r.ok) throw new Error('도시 검색 실패');
   const j=await r.json();
   if(!j.results || !j.results.length) throw new Error('도시를 찾지 못했습니다');
