@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trip Fit Weather</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin: 0; background:#0b1020; color:#f5f7ff; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+    .card { background:#151d36; border:1px solid #2a365f; border-radius:16px; padding:16px; margin-bottom:16px; }
+    input, select, button { padding:10px 12px; border-radius:10px; border:1px solid #334; background:#0f1730; color:#fff; }
+    button { background:#4f7cff; border:none; cursor:pointer; font-weight:600; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .muted { color:#9fb0df; font-size:13px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Trip Fit Weather</h1>
+    <p class="muted">도시/기간/성별/연령대 기반 날씨+코디 추천 MVP</p>
+
+    <div class="card">
+      <div class="grid">
+        <input id="city" placeholder="도시 (예: Bangkok, New York, Seoul)" value="Bangkok" />
+        <input id="country" placeholder="국가코드 (예: TH, US, KR)" value="TH" />
+        <input id="start" type="date" />
+        <input id="end" type="date" />
+        <select id="gender"><option>남성</option><option>여성</option><option>중립</option></select>
+        <select id="age">
+          <option>10대</option><option selected>20대</option><option>30대</option><option>40대</option><option>50대</option><option>60대</option><option>70대</option>
+        </select>
+      </div>
+      <div style="margin-top:12px" class="row">
+        <button id="runBtn">추천 받기</button>
+        <span class="muted">* 현재 데모: 룰 기반 코디 + 예보 API 자리</span>
+      </div>
+    </div>
+
+    <div id="result" class="card">결과가 여기에 표시됩니다.</div>
+  </div>
+
+<script>
+function outfitRule(tempMax, rainProb){
+  let top = tempMax >= 28 ? '반팔' : tempMax >= 20 ? '긴팔/얇은 셔츠' : '니트/맨투맨';
+  let outer = tempMax < 18 ? '가벼운 자켓' : '불필요/얇은 가디건';
+  let items = [];
+  if (rainProb >= 50) items.push('우산');
+  if (tempMax >= 30) items.push('모자');
+  items.push('편한 운동화');
+  return {top, outer, items};
+}
+
+document.getElementById('runBtn').onclick = () => {
+  const city = document.getElementById('city').value;
+  const country = document.getElementById('country').value;
+  const gender = document.getElementById('gender').value;
+  const age = document.getElementById('age').value;
+  const demo = [
+    {date:'D1', tempMax:31, tempMin:26, rainProb:60},
+    {date:'D2', tempMax:33, tempMin:27, rainProb:30},
+    {date:'D3', tempMax:30, tempMin:25, rainProb:70}
+  ];
+  const html = demo.map(d=>{
+    const r = outfitRule(d.tempMax, d.rainProb);
+    return `<div style="padding:10px;border-bottom:1px solid #2a365f">
+      <b>${d.date}</b> · ${d.tempMin}~${d.tempMax}°C · 강수확률 ${d.rainProb}%<br>
+      코디(${gender}/${age}): ${r.top} + ${outer=r.outer} / 준비물: ${r.items.join(', ')}
+    </div>`;
+  }).join('');
+  document.getElementById('result').innerHTML = `<h3>${city}, ${country} 추천</h3>${html}`;
+}
+</script>
+</body>
+</html>
